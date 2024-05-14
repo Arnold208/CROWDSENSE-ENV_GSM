@@ -62,9 +62,12 @@ void RTC_DS1307_LogicHub::printTime() {
 }
 
 String RTC_DS1307_LogicHub::getFormattedTime() {
-    // Cast the string literal to char* if the library method does not modify the input
-    return now().toString(const_cast<char*>("YY-MM-DDTHH:MM:SS"));
+    DateTime now = rtc.now();
+    char buffer[20];  // Ensure the buffer is large enough for the formatted string
+    sprintf(buffer, "%02d-%02d-%02dT%02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
+    return String(buffer);
 }
+
 
 void RTC_DS1307_LogicHub::printFutureTime(int days, int hours, int minutes, int seconds) {
     DateTime future = now() + TimeSpan(days, hours, minutes, seconds);

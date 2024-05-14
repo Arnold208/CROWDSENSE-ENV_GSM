@@ -13,38 +13,38 @@
 #include "SDCardManager/SDCardManager.h"
 #include "SettingsManager/SettingsManager.h"
 #include "RTC-DS1307/RTC_DS1307.h"
+#include "Utility/Utility.h"
 
+#define PWR 2
 
-bool RtcInit = false;
+bool rtcInit = false;
 
 // Initialize the Sensors
 
 RTC_DS1307_LogicHub rtc;
 
-
-void serialOutput(String info){
-  #ifdef DEBUG
-  Serial.println(info);
-  #endif
-}
-
-
 void setup()
 {
+  pinMode(PWR, OUTPUT);
+  Utility::triggerPower(PWR, true);
   Serial.begin(9600);
-   if (!rtc.begin()) {
-        serialOutput("RTC setup failed!");
-    }
+
+  delay(5000);
+
+  rtcInit = rtc.begin();
+  if (!rtcInit)
+  {
+    Utility::serialOutput("RTC setup failed!");
+  }
   else{
-    RtcInit = !RtcInit;
-    serialOutput("RTC is active");
+    Utility::serialOutput(rtc.getFormattedTime());
+    Utility::serialOutput( rtc.getEpochTime());
+
   }
 }
 
 void loop()
 {
 
-
-delay(2000);
-
+  delay(2000);
 }
