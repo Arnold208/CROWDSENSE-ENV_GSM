@@ -1,0 +1,93 @@
+
+RTC_DS1307_Custom Library Documentation
+---------------------------------------
+
+Class Overview:
+The RTC_DS1307_Custom class provides an interface to manage the RTC_DS1307 real-time clock module. It extends basic functionality with robust error handling and additional features for setting and retrieving time in various formats, as well as synchronization with server time.
+
+Public Methods:
+
+1. Constructor: RTC_DS1307_Custom()
+   - Description: Initializes a new instance of the RTC_DS1307_Custom class.
+   - Parameters: None
+   - Returns: None
+
+2. bool begin()
+   - Description: Initializes the RTC module and checks if it is running. Sets the time to the compiled date and time if the RTC is not running.
+   - Parameters: None
+   - Returns: true if the RTC is successfully initialized and running, false otherwise.
+
+3. bool checkRunning()
+   - Description: Checks if the RTC is currently running and sets the time if it is not.
+   - Parameters: None
+   - Returns: true if the RTC is running, false if the RTC was not running and the time was set.
+
+4. void setTime(DateTime dt)
+   - Description: Sets the RTC to a specified date and time.
+   - Parameters:
+     - DateTime dt: The date and time to set the RTC to.
+   - Returns: true if the time was successfully set, false otherwise.
+
+5. DateTime now()
+   - Description: Retrieves the current date and time from the RTC.
+   - Parameters: None
+   - Returns: A DateTime object representing the current date and time.
+
+6. time_t getEpochTime()
+   - Description: Gets the current date and time as an epoch time (seconds since Jan 1, 1970).
+   - Parameters: None
+   - Returns: The current time as a time_t (long integer) value.
+
+7. String getFormattedTime()
+   - Description: Returns the current date and time in the format "YY-MM-DDTHH:MM:SS".
+   - Parameters: None
+   - Returns: A String representing the formatted current time.
+
+8. bool correctTime(DateTime correctTime)
+   - Description: Corrects the RTC's current time if it differs from a provided correct time.
+   - Parameters:
+     - DateTime correctTime: The correct date and time to set if there's a mismatch.
+   - Returns: true if the time was corrected, false if no correction was needed.
+
+9. bool syncTimeWithServer(DateTime serverTime)
+   - Description: Synchronizes the RTC's time with a provided server time.
+   - Parameters:
+     - DateTime serverTime: The server-provided time to synchronize with.
+   - Returns: true if the RTC time was updated, false if it was already in sync.
+
+10. void setTimeToCompiled()
+    - Description: Sets the RTC's time to the date and time when the sketch was compiled.
+    - Parameters: None
+    - Returns: None
+
+11. void printTime()
+    - Description: Prints the current time to the Serial output in a human-readable format.
+    - Parameters: None
+    - Returns: None
+
+12. void printFutureTime(int days, int hours, int minutes, int seconds)
+    - Description: Prints a future time calculated from the current time plus a specified interval.
+    - Parameters:
+      - int days: Days to add to the current time.
+      - int hours: Hours to add.
+      - int minutes: Minutes to add.
+      - int seconds: Seconds to add.
+    - Returns: None
+
+Example Usage:
+
+#include <Arduino.h>
+#include "RTC_DS1307.h"
+
+RTC_DS1307_Custom rtc;
+
+void setup() {
+    Serial.begin(57600);
+    rtc.begin();
+    rtc.setTimeToCompiled(); // Set RTC to compiled time
+}
+
+void loop() {
+    rtc.printTime(); // Print current time every 10 seconds
+    delay(10000);
+}
