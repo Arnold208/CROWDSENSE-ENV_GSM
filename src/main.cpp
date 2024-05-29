@@ -184,8 +184,31 @@ void PM()
   delay(50);
 }
 
-void getPower(){
+void getVoltage()
+{
+  int rawBattInput = analogRead(26);             // Read raw ADC value from pin 26
+  float voltage = (rawBattInput / 4095.0) * 3.3; // Convert raw value to voltage
 
+  // Adjust for the voltage divider
+  float R1 = 0.986; // Resistor 1 in kOhms
+  float R2 = 0.984; // Resistor 2 in kOhms
+
+  // Voltage divider formula: V_in = V_out * (R1 + R2) / R2
+  float batteryVoltage = voltage * (R1 + R2) / R2;
+
+  // Output the calculated battery voltage
+  Utility::serialOutput(batteryVoltage);
+  telemetry["b"] = batteryVoltage;
+
+
+  int rawSolarInput = analogRead(25);
+  float voltageSolar = (rawSolarInput / 4095.0) * 3.3; // Convert raw value to voltage
+  // Adjust for the voltage divider
+  float r1 = 10; // Resistor 1 in kOhms
+  float r2 = 4;  // Resistor 2 in kOhms
+  float SolarVoltage = voltageSolar * (r1 + r2) / r2;
+  telemetry["sp"] = SolarVoltage;
+   Utility::serialOutput(SolarVoltage);
 }
 
 void connect_gprs()
@@ -424,6 +447,8 @@ void setup()
 
   PM();
 
+  getVoltage();
+
   rtcInit = rtc.begin();
   if (!rtcInit)
   {
@@ -455,6 +480,6 @@ void loop()
   // connect_gprs();
   // pm_data();
   // postTelemetry()
-
-  delay(300);
+getVoltage();
+  delay(600);
 }
