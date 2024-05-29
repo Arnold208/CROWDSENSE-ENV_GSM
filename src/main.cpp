@@ -23,6 +23,8 @@
 #define SD_CS_PIN 5
 #define rxPin 14
 #define txPin 4
+#define Bat 26
+#define Solar 25
 #define EID "2e2"
 #define API_KEY "2jkl23A"
 
@@ -33,6 +35,7 @@ bool ltrInit = false;
 bool sdInit = false;
 
 String jsonPayload;
+String Status = "";
 
 // Initialize the Sensors
 RTC_DS1307_LogicHub rtc;
@@ -45,8 +48,8 @@ JsonDocument telemetry;
 SoftwareSerial pmsSerial(16, 17); // RX, TX pins; Choose pins based on your hardware
 SoftwareSerial SerialDT(txPin, rxPin);
 
-PMS pms(pmsSerial);
-PMS::DATA data;
+// PMS pms(pmsSerial);
+// PMS::DATA data;
 
 // Connection Details
 const char apn[] = "internet";
@@ -64,6 +67,127 @@ HttpClient http(client, server, port);
 
 bool isGprsConnected = false;
 
+struct pms5003data
+{
+
+  uint16_t framelen;
+
+  uint16_t pm10_standard, pm25_standard, pm100_standard;
+
+  uint16_t pm10_env, pm25_env, pm100_env;
+
+  uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
+
+  uint16_t unused;
+
+  uint16_t checksum;
+};
+
+struct pms5003data data;
+
+boolean readPMSdata(Stream *s)
+{
+  if (!s->available())
+  {
+    return false;
+  }
+
+  // Read a byte at a time until we get to the special '0x42' start-byte
+  if (s->peek() != 0x42)
+  {
+    s->read();
+    return false;
+  }
+
+  // Now read all 32 bytes
+  if (s->available() < 32)
+  {
+    return false;
+  }
+
+  uint8_t buffer[32];
+  uint16_t sum = 0;
+  s->readBytes(buffer, 32);
+
+  // get checksum ready
+  for (uint8_t i = 0; i < 30; i++)
+  {
+    sum += buffer[i];
+  }
+
+  /* debugging
+    for (uint8_t i=2; i<32; i++) {
+    Serial.print("0x"); Serial.print(buffer[i], HEX); Serial.print(", ");
+    }
+    Serial.println();
+  */
+
+  // The data comes in endian'd, this solves it so it works on all platforms
+  uint16_t buffer_u16[15];
+  for (uint8_t i = 0; i < 15; i++)
+  {
+    buffer_u16[i] = buffer[2 + i * 2 + 1];
+    buffer_u16[i] += (buffer[2 + i * 2] << 8);
+  }
+
+  // put it into a nice struct :)
+  memcpy((void *)&data, (void *)buffer_u16, 30);
+
+  if (sum != data.checksum)
+  {
+    Serial.println("Checksum failure");
+    return false;
+  }
+  // success!
+  return true;
+}
+
+void PM()
+{
+
+  if (readPMSdata(&pmsSerial))
+  {
+
+    Serial.println();
+
+    Utility::serialOutput("Concentration Units (environmental)");
+
+    Serial.print("PM 1.0: ");
+    Serial.print(data.pm10_env);
+
+    Serial.print("\t\tPM 2.5: ");
+    Serial.print(data.pm25_env);
+
+    Serial.print("\t\tPM 10: ");
+    Serial.println(data.pm100_env);
+
+    telemetry["p0"] = data.pm10_env;
+
+    telemetry["p2"] = data.pm25_env;
+
+    telemetry["p1"] = data.pm100_env;
+
+    Status += "0";
+  }
+  else
+  {
+    // appendFile(SD, "/logs/logs.txt", "Air Quality Sensor Test: [ ] Fail" );
+    telemetry["p0"] = 0;
+
+    telemetry["p2"] = 0;
+
+    telemetry["p1"] = 0;
+
+    Status += "1";
+  }
+
+  delay(50);
+}
+
+void getPower(){
+
+}
+
 void connect_gprs()
 {
 
@@ -77,7 +201,7 @@ void connect_gprs()
   }
 
   // GPRS connection
-  Serial.print("Connecting to APN: ");
+  Utility::serialOutput("Connecting to APN: ");
   Utility::serialOutput(apn);
 
   bool connected = modem.gprsConnect(apn, gprsUser, gprsPass);
@@ -188,25 +312,6 @@ void postTelemetry()
   delay(3000);
 }
 
-void pm_data()
-{
-  if (pms.read(data))
-  {
-    Utility::serialOutput("PM 1.0 (ug/m3): ");
-    Utility::serialOutput(data.PM_AE_UG_1_0);
-    Utility::serialOutput("\n");
-
-    Utility::serialOutput("PM 2.5 (ug/m3): ");
-    Utility::serialOutput(data.PM_AE_UG_2_5);
-    Utility::serialOutput("\n");
-
-    Utility::serialOutput("PM 10.0 (ug/m3): ");
-    Utility::serialOutput(data.PM_AE_UG_10_0);
-
-    Utility::serialOutput("\n");
-  }
-}
-
 void setup()
 {
   pinMode(PWR, OUTPUT);
@@ -219,9 +324,6 @@ void setup()
   pmsSerial.begin(9600); // Start the software serial for PMS
   SerialDT.begin(9600);
 
-  // Initialize PMS library
-  // pms.passiveMode();   // GPIO2 (D4 pin on ESP-12E Development Board)
-
   Utility::serialOutput("");
   Utility::serialOutput("Debugging and Testing Mode");
 
@@ -229,28 +331,19 @@ void setup()
   if (!sdInit)
   {
     Utility::serialOutput("SD card initialization failed.");
+    Status += "1";
   }
   else
   {
     Utility::serialOutput("SD Card Ready");
-  }
-
-  rtcInit = rtc.begin();
-  if (!rtcInit)
-  {
-    Utility::serialOutput("RTC setup failed!");
-  }
-  else
-  {
-    rtc.setTimeToCompiled();
-    Utility::serialOutput(rtc.getFormattedTime());
-    Utility::serialOutput(rtc.getEpochTime());
+    Status += "0";
   }
 
   bmeInit = bme.begin();
   if (!bmeInit)
   {
     Utility::serialOutput("Bme680 setup failed!");
+    Status += "1";
   }
   else
   {
@@ -261,20 +354,28 @@ void setup()
     bme.setGasHeater(320, 150);
 
     delay(2000);
+
     if (!bme.performReading())
     {
       Utility::serialOutput("Failed to perform reading :(");
+      Status += "1";
     }
     Utility::serialOutput(bme.temperature);
     Utility::serialOutput(bme.pressure / 100.0);
     Utility::serialOutput(bme.humidity);
-    Utility::serialOutput(bme.gas_resistance / 1000.0);
+    // Utility::serialOutput(bme.gas_resistance / 1000.0);
+
+    telemetry["t"] = bme.temperature;
+    telemetry["p"] = (bme.pressure / 100.0);
+    telemetry["h"] = (bme.humidity);
+    Status += "0";
   }
 
   vemlInit = veml.begin();
   if (!vemlInit)
   {
     Utility::serialOutput("Veml7700 setup failed!");
+    Status += "1";
   }
   else
   {
@@ -288,12 +389,17 @@ void setup()
     Utility::serialOutput(veml.readALS());
     Utility::serialOutput(veml.readWhite());
     Utility::serialOutput(veml.readLux());
+
+    telemetry["l"] = veml.readLux();
+
+    Status += "0";
   }
 
   ltrInit = ltr.begin();
   if (!ltrInit)
   {
     Utility::serialOutput("LTR-390 setup failed!");
+    Status += "1";
   }
   else
   {
@@ -303,17 +409,52 @@ void setup()
     ltr.setThresholds(100, 1000);
     ltr.configInterrupt(true, LTR390_MODE_UVS);
 
+    telemetry["uv"] = ltr.readUVS();
     Utility::serialOutput(ltr.readUVS());
+    Status += "0";
   }
 
-  
+  PM();
+
+  delay(10000);
+
+  PM();
+
+  delay(10000);
+
+  PM();
+
+  rtcInit = rtc.begin();
+  if (!rtcInit)
+  {
+    Utility::serialOutput("RTC setup failed!");
+    Status += "1";
+  }
+  else
+  {
+    rtc.setTimeToCompiled();
+    Utility::serialOutput(rtc.getFormattedTime());
+    Utility::serialOutput(rtc.getEpochTime());
+    telemetry["d"] = rtc.getEpochTime();
+    Status += "0";
+  }
+
+  Utility::serialOutput(Status);
+  telemetry["e"] = Status;
+  telemetry["i"] = EID;
+
+  serializeJson(telemetry, jsonPayload);
+
+  const char *jsonPayloadChar = jsonPayload.c_str();
+
+  Utility::serialOutput(jsonPayloadChar);
 }
 
 void loop()
 {
   // connect_gprs();
   // pm_data();
-  //postTelemetry()
+  // postTelemetry()
 
   delay(300);
 }
